@@ -1,0 +1,103 @@
+et's analyze the data to accomplish your tasks. First, I'll inspect the file you uploaded to understand its structure and the fields available.
+
+The dataset contains 81 columns with various details about CO₂ emissions, population, GDP, and related metrics. The primary columns relevant to your tasks include:
+
+country: Name of the country.
+year: Year of the data.
+total_co2_emission(including luc): Total CO₂ emissions including land use change.
+coal_co2, gas_co2, oil_co2, cement_co2: Emissions by specific sectors.
+region: Geographical region of the country.
+
+Here is the SQL query to retrieve the top 10 countries with the highest emissions in the last decade, excluding aggregated groups like "World," "Asia," etc.:
+
+SELECT 
+    country,
+    SUM(total_co2_emission) AS total_emissions
+FROM 
+    emissions_table
+WHERE 
+    year >= YEAR(CURRENT_DATE) - 10 -- Adjust based on the current year
+    AND country NOT IN ('World', 'Asia', 'Upper-middle-income countries', 
+                        'High-income countries', 'North America', 'Europe', 
+                        'Lower-middle-income countries', 'European Union (27)')
+GROUP BY 
+    country
+ORDER BY 
+    total_emissions DESC
+LIMIT 10;
+
+
+Here are the SQL queries for the remaining tasks:
+
+
+
+
+Task 2: Calculate year-over-year changes in emissions for a selected sector
+
+WITH YearlyEmissions AS (
+    SELECT 
+        country,
+        year,
+        SUM(coal_co2) AS coal_emissions,
+        SUM(gas_co2) AS gas_emissions,
+        SUM(oil_co2) AS oil_emissions,
+        SUM(cement_co2) AS cement_emissions,
+        SUM(flaring_co2) AS flaring_emissions,
+        SUM(coal_co2 + gas_co2 + oil_co2 + cement_co2 + flaring_co2) AS total_emissions
+    FROM 
+        emissions_table
+    GROUP BY 
+        country, year
+),
+YearlyChanges AS (
+    SELECT 
+        country,
+        year,
+        coal_emissions,
+        gas_emissions,
+        oil_emissions,
+        cement_emissions,
+        flaring_emissions,
+        total_emissions,
+        LAG(coal_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_coal_emissions,
+        LAG(gas_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_gas_emissions,
+        LAG(oil_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_oil_emissions,
+        LAG(cement_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_cement_emissions,
+        LAG(flaring_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_flaring_emissions,
+        LAG(total_emissions) OVER (PARTITION BY country ORDER BY year) AS previous_total_emissions
+    FROM 
+        YearlyEmissions
+)
+SELECT 
+    country,
+    year,
+    coal_emissions - previous_coal_emissions AS coal_change,
+    gas_emissions - previous_gas_emissions AS gas_change,
+    oil_emissions - previous_oil_emissions AS oil_change,
+    cement_emissions - previous_cement_emissions AS cement_change,
+    flaring_emissions - previous_flaring_emissions AS flaring_change,
+    total_emissions - previous_total_emissions AS total_change
+FROM 
+    YearlyChanges
+WHERE 
+    previous_total_emissions IS NOT NULL
+ORDER BY 
+    country, year;
+
+
+Task 3: Create a summary table of emissions by region and sector
+
+SELECT 
+    region,
+    SUM(coal_co2) AS coal_emissions,
+    SUM(gas_co2) AS gas_emissions,
+    SUM(oil_co2) AS oil_emissions,
+    SUM(cement_co2) AS cement_emissions,
+    SUM(total_co2_emission) AS total_emissions
+FROM 
+    emissions_table
+GROUP BY 
+    region
+ORDER BY 
+    total_emissions DESC;
+
